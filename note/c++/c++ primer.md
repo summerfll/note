@@ -7387,3 +7387,1079 @@ vector与deque的比较：
 
 ## 13.2 算法
 
+#### 算法概述
+
+算法部分主要由头文件<algorithm>，<numeric>和<functional>组成。
+
+<algorithm>是所有STL头文件中最大的一个，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等。
+
+ <numeric>体积很小，只包括几个在序列上面进行简单数学运算的模板函数，包括加法和乘法在序列上的一些操作。
+
+  <functional>中则定义了一些模板类，用以声明函数对象。
+
+  STL提供了大量实现算法的模版函数，只要我们熟悉了STL之后，许多代码可以被大大的化简，只需要通过调用一两个算法模板，就可以完成所需要的功能，从而大大地提升效率。
+
+#### 算法分类
+
+- - 非可变序列算法 指不直接修改其所操作的容器内容的算法
+
+  - - 计数算法       count、count_if
+    - 搜索算法       search、find、find_if、find_first_of、…
+    - 比较算法       equal、mismatch、lexicographical_compare
+
+  - 可变序列算法 指可以修改它们所操作的容器内容的算法
+
+  - - 删除算法       remove、remove_if、remove_copy、…
+    - 修改算法       for_each、transform
+    - 排序算法       sort、stable_sort、partial_sort、
+
+### 13.2.1 函数对象和谓词
+
+**函数对象：** 
+
+重载函数调用操作符的类，其对象常称为函数对象(function object)，即它们是行为类似函数的对象。一个类对象，表现出一个函数的特征，就是通过“对象名+([参数列表](http://baike.baidu.com/view/8423750.htm))”的方式使用一个类对象，如果没有上下文，完全可以把它看作一个函数对待。
+
+这是通过[重载](http://baike.baidu.com/view/126530.htm)类的operator()来实现的。
+
+“在标准库中，函数对象被广泛地使用以获得弹性”，标准库中的很多算法都可以使用函数对象或者函数来作为自定的回调行为；
+
+**谓词：**
+
+一元函数对象：函数参数1个；
+
+二元函数对象：函数参数2个；
+
+一元谓词 函数参数1个，函数返回值是bool类型，可以作为一个判断式
+
+​                       谓词可以使一个仿函数，也可以是一个回调函数。
+
+二元谓词 函数参数2个，函数返回值是bool类型
+
+~~~c++
+
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<algorithm>//算法的头文件
+
+template<typename T>
+class Show
+{
+public:
+	Show()
+	{
+		a = 0;
+	}
+	void operator()(T &t)
+	{
+		a++;
+		cout << t << endl;
+	}
+	void print()
+	{
+		cout << "a: "<<a<< endl;
+	}
+private:
+	int a;
+};
+
+template<typename T>
+void Func(T &t)
+{
+	cout << t << endl;
+}
+void Func2(int &t)
+{
+	cout << t << endl;
+}
+//函数对象定义，以及函数对象和普通函数的异同
+void main01()
+{
+	int a = 10;
+	Show<int> show;
+	show(a);//函数对象的执行很像一个函数//仿函数
+	Func<int>(a);//模板函数使用
+	Func2(a);//普通函数使用
+}
+//函数对象是属于类对象，能突破函数的概念，能保持调用状态信息《=====函数对象的好处
+//for_each算法中，对象做函数参数
+//for_each算法中，函数对象当返回值
+//结论要点：分清楚 stl算法返回的只是迭代器 还是 谓词(函数对象) 是stl算法的重要点
+void main02()
+{
+	vector<int> v1;
+	v1.push_back(10);
+	v1.push_back(100);
+	v1.push_back(1000);
+	for_each(v1.begin(), v1.end(), Show<int>());//匿名函数对象 匿名仿函数
+	for_each(v1.begin(), v1.end(), Func<int>);
+	for_each(v1.begin(),v1.end(),Func2);//通过回调函数
+	Show<int> show;
+	/*
+	template<class _InIt,
+	class _Fn1> inline
+	_Fn1 for_each(_InIt _First, _InIt _Last, _Fn1 _Func)
+	{	// perform function for each element
+	_DEBUG_RANGE_PTR(_First, _Last, _Func);
+	_For_each_unchecked(_Unchecked(_First), _Unchecked(_Last), _Func);
+	return (_Func);
+	}
+	*/
+	cout << "通过for_each的返回值看函数调用次数" << endl;
+	show=for_each(v1.begin(), v1.end(), show);//for_each算法函数对象的传递是元素值传递，不是引用传递
+	show.print();	
+}
+void main()
+{
+	//main01();
+	main02();
+	system("pause");
+}
+~~~
+
+~~~c++
+
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<algorithm>//算法的头文件
+
+template<typename T>
+class Show
+{
+public:
+	Show(T &t)
+	{
+		a = t;
+	}
+	bool operator()(T &t)
+	{
+		return t%a == 0;
+	}
+	void print()
+	{
+		cout << "a: " << a << endl;
+	}
+private:
+	T a;
+};
+
+void main01()
+{
+	vector<int> v(10);
+	for (int i = 0;i < 10;i++)
+	{
+		v[i] = i + 10;
+	}
+
+	/*
+	template<class _InIt,
+	class _Pr> inline
+	_InIt find_if(_InIt _First, _InIt _Last, _Pr _Pred)
+	{	// find first satisfying _Pred
+	_DEBUG_RANGE_PTR(_First, _Last, _Pred);
+	return (_Rechecked(_First,
+	_Find_if_unchecked(_Unchecked(_First), _Unchecked(_Last), _Pred)));
+	}
+	*/
+	//find_if返回一个迭代器
+	int at = 3;
+	vector<int>::iterator it=find_if(v.begin(),v.end(),Show<int>(at));
+	if (it == v.end())
+	{
+		cout << "容器中没有能被3整除的元素" << endl;
+	}
+	else
+	{
+		cout << "第一个被3整除的元素为： " << *it << endl;
+	}
+}
+template<typename T>
+class AddF
+{
+public:
+	T &operator()(T &t1,T &t2)
+	{
+		return t = t1 + t2;
+	}
+	T t;
+};
+void main02()
+{
+	//v3=v1+v2
+	vector<int> v1, v2, v3(10);
+	v1.push_back(10);
+	v1.push_back(20);
+	v1.push_back(30);
+	v2.push_back(40);
+	v2.push_back(50);
+	v2.push_back(60);
+	/*
+	_OutIt transform(_InIt1 _First1, _InIt1 _Last1,
+	_InTy (&_First2)[_InSize], _OutIt _Dest, _Fn2 _Func)
+	{	// transform [_First1, _Last1) and [_First2, ...), array input
+	_DEPRECATE_UNCHECKED(transform, _Dest);
+	return (_Transform_no_deprecate(_First1, _Last1,
+	_Array_iterator<_InTy, _InSize>(_First2), _Dest, _Func));
+	}
+	//transform返回值为运算结果迭代器的开始位置
+	*/
+	transform(v1.begin(),v1.end(),v2.begin(),v3.begin(),AddF<int>());//注意：v1.begin(),v1.end()此区域中的元素，必须与v2中元素个数相同，不然报错
+	for (vector<int>::iterator it = v3.begin();it != v3.end();it++)
+	{
+		cout << *it << endl;
+	}
+}
+void Func2(int &t)
+{
+	cout << t <<" ";
+}
+bool Compare(const int &t1,const int &t2)//二元谓词
+{
+	return t1 < t2;
+}
+void main03()
+{
+	vector<int> v(10);
+	for (int i = 0;i < v.size();i++)
+	{
+		v[i] = rand();
+	}
+	for_each(v.begin(),v.end(), Func2);//遍历
+	cout << endl;
+	/*
+	template<class _RanIt,
+	class _Pr> inline
+	void sort(_RanIt _First, _RanIt _Last, _Pr _Pred)
+	{	// order [_First, _Last), using _Pred
+	_DEBUG_RANGE(_First, _Last);
+	_Sort_unchecked(_Unchecked(_First), _Unchecked(_Last), _Pred);
+	}
+	*/
+	sort(v.begin(),v.end(),Compare);//排序
+	for_each(v.begin(), v.end(), Func2);//遍历
+	cout << endl;
+}
+class NotCompare
+{
+public:
+	bool operator()(const string &t1, const string &t2)
+	{
+		string str1_;
+		str1_.resize(t1.size());
+		transform(t1.begin(), t1.end(), str1_.begin(), tolower);
+		string str2_;
+		str2_.resize(t2.size());
+		transform(t2.begin(), t2.end(), str2_.begin(), tolower);
+		return str1_ < str2_;
+	}
+};
+void main04()
+{
+	set<string> s1;
+	s1.insert("aaa");
+	s1.insert("bb");
+	s1.insert("cccc");
+	set<string>::iterator it = s1.find("BB");//默认区分大小写，修改为不区分大小写
+	if (it != s1.end())
+	{
+		cout << "找到为BB的元素" << endl;
+	}
+	else
+	{
+		cout << "未找到BB" << endl;
+	}
+	set<string,NotCompare> s2;
+	s2.insert("aaa");
+	s2.insert("bb");
+	s2.insert("cccc");
+	set<string, NotCompare>::iterator  it2 = s2.find("BB");//默认区分大小写，修改为不区分大小写
+	if (it2 != s2.end())
+	{
+		cout << "找到为BB的元素" << endl;
+	}
+	else
+	{
+		cout << "未找到BB" << endl;
+	}
+}
+void main()
+{
+	//main01();//一元谓词，一元谓词 函数参数1个，函数返回值是bool类型
+	//main02();//二元函数对象
+	//main03();//二元谓词，函数参数2个，函数返回值是bool类型
+	main04();
+	system("pause");
+}
+~~~
+
+### 13.2.2 预定义函数对象和函数适配器
+
+1）预定义函数对象基本概念：标准模板库**STL**提前定义了很多预定义函数对象，#include
+<functional> 必须包含。
+
+**2）算术函数对象**
+预定义的函数对象支持加、减、乘、除、求余和取反。调用的操作符是与type相关联的实例
+加法：plus<Types>
+plus<string> stringAdd;
+sres = stringAdd(sva1, sva2);
+减法：minus<Types>
+乘法：multiplies<Types>
+除法divides<Tpye>
+求余：modulus<Tpye>
+取反：negate<Type>
+
+3**）关系函数对象** 
+
+等于equal_to<Tpye>
+
+equal_to<string> stringEqual;
+
+sres = stringEqual(sval1,sval2);
+
+不等于not_equal_to<Type>
+
+大于 greater<Type>
+
+大于等于greater_equal<Type>
+
+小于 less<Type>
+
+小于等于less_equal<Type>
+
+**4）逻辑函数对象**
+
+逻辑与 logical_and<Type>
+
+logical_and<int> indAnd;
+
+ires = intAnd(ival1,ival2);
+
+dres=BinaryFunc( logical_and<double>(),dval1,dval2);
+
+逻辑或logical_or<Type>
+
+逻辑非logical_not<Type>
+
+**函数适配器**
+
+STL中已经定义了大量的函数兑现，但有时候需要对函数返回值进行进一步的简化计算，或者填上多余的参数，不能直接带入算法。函数适配器实现了这一功能，将一种函数对象转化为另一种符合要求的函数对象。函数适配器分为4大类：绑定适配器，组合适配器，指针函数适配器和成员函数适配器。
+
+![64](F:\学习专用\note\pic\64.png)
+
+![63](F:\学习专用\note\pic\63.png)
+
+**2）常用函数函数适配**
+
+标准库提供一组函数适配器，用来特殊化或者扩展一元和二元函数对象。常用适配器是：
+
+1绑定器（binder）: binder通过把二元函数对象的一个实参绑定到一个特殊的值上，将其转换成一元函数对象。C＋＋标准库提供两种预定义的binder适配器：bind1st和bind2nd，前者把值绑定到二元函数对象的第一个实参上，后者绑定在第二个实参上。
+
+2取反器(negator) : negator是一个将函数对象的值翻转的函数适配器。标准库提供两个预定义的ngeator适配器：not1翻转一元预定义函数对象的真值,而not2翻转二元谓词函数的真值。
+
+常用函数适配器列表如下：
+
+bind1st(op, value)
+
+bind2nd(op, value)
+
+not1(op)
+
+not2(op)
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+
+void Func(string &str)
+{
+	cout << str << " ";
+}
+//1. plus<type> 预定义函数对象，嫩实现不同类型数据的加法运算,实现了数据类型和算法的分离==>通过函数对象实现
+//2. sort()排序函数对象，默认为从小到大排序
+//3. equal_to()函数对象 比较两个参数是否相等
+//4. count_if()求某数据出现的次数，和equal_to一起使用
+//5. 函数适配器的使用，bind2nd（），把预定义函数对象和第二个参数进行绑定
+void main01()
+{
+	/*
+	template<class _Ty = void>
+	struct plus
+	{	// functor for operator+
+	typedef _Ty first_argument_type;
+	typedef _Ty second_argument_type;
+	typedef _Ty result_type;
+
+	constexpr _Ty operator()(const _Ty& _Left, const _Ty& _Right) const
+	{	// apply operator+ to operands
+	return (_Left + _Right);
+	}
+	};
+	*/
+	
+	plus<int> add;
+	int a = 10;
+	int b = 20;
+	int c = add(10, 20);
+	cout << c << endl;
+	plus<string> addstr;
+	string s1("aaa");
+	string s2 = "bbb";
+	string s3 = addstr(s1,s2);
+	cout << s3 << endl;
+
+	vector<string> v;
+	v.push_back("dsa");
+	v.push_back("bbb");
+	v.push_back("bbb");
+	v.push_back("bbb");
+	v.push_back("ccc");
+	v.push_back("ddd");
+	/*
+	template<class _RanIt> inline
+	void sort(_RanIt _First, _RanIt _Last)
+	{	// order [_First, _Last), using operator<
+	_STD sort(_First, _Last, less<>());//从小到大
+	}
+	*/
+	sort(v.begin(), v.end(), greater<>());//从大到小排序
+	for_each(v.begin(), v.end(), Func);//遍历容器
+	sort(v.begin(),v.end());//排序默认为sort(_First, _Last, less<>()),从小到大
+	for_each(v.begin(),v.end(),Func);//遍历容器
+	
+	//查询bbb出现的次数
+	/*
+	template<class _Ty = void>
+	struct equal_to
+	{	// functor for operator==
+	typedef _Ty first_argument_type;
+	typedef _Ty second_argument_type;
+	typedef bool result_type;
+
+	constexpr bool operator()(const _Ty& _Left, const _Ty& _Right) const
+	{	// apply operator== to operands
+	return (_Left == _Right);
+	}
+	};
+	*/
+	//equal_to<>()有两个参数 left参数来自容器，right参数来自s
+	//bind2nd函数适配器，把预定义函数对象和第二个参数进行绑定
+	//bind1st函数适配器，把预定义函数对象和第一个参数进行绑定
+	string s = "bbb";
+	int num=count_if(v.begin(),v.end(),bind2nd(equal_to<string>(),s));
+	cout << num << endl;
+}
+template<typename T>
+struct CompareOver
+{
+	CompareOver(T t)
+	{
+		m_a = t;
+	}
+	 bool operator()(const T &t)
+	{
+		 return t>m_a;
+	}
+private:
+	int m_a;
+};
+void main02()
+{
+	vector<int> v;
+	for (int i = 0;i < 10;i++)
+	{
+		v.push_back(i + 10);
+	}
+	for (vector<int>::iterator it = v.begin();it != v.end();it++)
+	{
+		cout << *it << " ";
+	}
+	cout << endl;
+	//求数组中大于13的个数,通过谓词方式
+	int a = 13;
+	int number = count_if(v.begin(), v.end(), CompareOver<int>(a));
+	cout << "数组中大于13的个数为： " << number << endl;
+	//求数组中小于15的个数，通过预定义函数对象
+	//less<int>() 有两个函数参数 left参数来自容器的元素，right参数为b(通过适配器绑定)
+	int b = 15;
+	int number2 = count_if(v.begin(), v.end(), bind2nd(less<int>(), b));
+	cout << "数组中小于15的个数为： " << number2 << endl;
+	//求奇数的个数
+	/*
+	template<class _Ty = void>
+	struct modulus
+	{	// functor for operator%
+	typedef _Ty first_argument_type;
+	typedef _Ty second_argument_type;
+	typedef _Ty result_type;
+
+	constexpr _Ty operator()(const _Ty& _Left, const _Ty& _Right) const
+	{	// apply operator% to operands
+	return (_Left % _Right);//通过%2方式可求奇数
+	}
+	};
+	*/
+	int number3 = count_if(v.begin(), v.end(), bind2nd(modulus<int>(), 2));
+	cout << "数组中为奇数的个数： " << number3 << endl;
+	//求偶数的个数 取反器（not1）
+	int number4 = count_if(v.begin(), v.end(),not1( bind2nd(modulus<int>(), 2)));
+	cout << "数组中为偶数的个数： " << number4 << endl;
+}
+void main()
+{
+	main01();
+	//main02();
+	system("pause");
+}
+~~~
+
+### 13.2.3 STL的容器算法迭代器的设计理念
+
+![65](F:\学习专用\note\pic\65.png)
+
+**结论：**！！！！！！！！！！！！！！！！！！！！！！！
+
+1）  STL的容器通过**类模板**技术，实现数据类型和容器模型的分离。
+
+2）  STL的**迭代器技术**实现了**遍历容器**的统一方法；也为STL的算法提供了统一性
+
+3）  STL算法：通过**函数对象**实现了**自定义数据类型**的算法运算。STL的算法也提供了统一性
+
+核心思想：函数对象本质就是回调函数，回调函数的思想：就是任务的编写者和任务的调用者有效解耦合。函数指针作函数参数
+
+4）  具体例子：transform算法的输入，通过迭代器first和last指向的元算作为输入；通过result作为输出；通过函数对象来做自定义数据类型的运算。
+
+### 13.2.4 常用的遍历算法
+
+#### for_each()
+
+for_each: 用指定函数一次对指定范围内所有元素进行迭代访问,或修改容器中元素
+
+#### transform()
+
+与for_each类似，遍历所有元素，可将结果返回到其他容器中
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+
+void Func(int &t)
+{
+	t++;
+	cout << t << " ";
+}
+void play(vector<int> &obj)
+{
+	for (vector<int>::iterator it = obj.begin();it != obj.end();it++)
+	{
+		cout << *it << " ";
+	}
+	cout << endl;
+}
+struct show
+{
+	void operator()(int t)
+	{
+		cout << t << " ";
+	}
+};
+//for_each()
+/*
+template<class _InIt,
+class _Fn1> inline
+_Fn1 for_each(_InIt _First, _InIt _Last, _Fn1 _Func)
+{	// perform function for each element
+_DEBUG_RANGE_PTR(_First, _Last, _Func);
+_For_each_unchecked(_Unchecked(_First), _Unchecked(_Last), _Func);
+return (_Func);
+}
+*/
+void main01()
+{
+	vector<int> v;
+	for (int i = 0;i < 10;i++)
+	{
+		v.push_back(i + 10);
+	}
+	for_each(v.begin(),v.end(), Func);//调用普通函数
+	cout << endl;
+	for_each(v.begin(), v.end(), show());//调用函数对象
+	cout << endl;
+	play(v);//使用迭代器遍历
+}
+int increase(int &t)
+{
+	t = t + 10;
+	cout << t << " ";
+	return t;
+}
+//transform()
+/*
+template<class _InIt,
+class _OutIt,
+class _Fn1> inline
+_OutIt transform(_InIt _First, _InIt _Last,
+_OutIt _Dest, _Fn1 _Func)
+{	// transform [_First, _Last) with _Func
+_DEPRECATE_UNCHECKED(transform, _Dest);
+return (_Transform_no_deprecate(_First, _Last, _Dest, _Func));
+}
+*/
+void main02()
+{
+	vector<int> v;
+	for (int i = 0;i < 10;i++)
+	{
+		v.push_back(i + 10);
+	}
+	//使用回调函数
+	transform(v.begin(), v.end(), v.begin(), increase);
+	cout << endl;
+	//使用预定义的函数对象 取反
+	transform(v.begin(), v.end(), v.begin(), negate<int>());
+	play(v);
+	//使用函数适配器
+	vector<int> v1(v.size());
+	transform(v.begin(),v.end(),v1.begin(),bind2nd(multiplies<int>(),10));//把结果返回给v1容器
+	play(v1);
+}
+void main()
+{
+	//main01();
+	main02();
+	system("pause");
+}
+~~~
+
+区别：
+
+for_each()   速度快  不灵活
+
+transform()  速度慢   非常灵活
+
+结论：
+
+一般情况下，for_each所使用的函数对象，参数是引用，没有返回值
+
+transform所使用的函数对象，参数一般不使用引用，而且需要有返回值
+
+### 13.2.5 常用的查找算法
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+//adjacent_find() 在iterator对标识元素范围内，查找一对相邻重复元素，找到则返回指向这对元素的第一个元素的迭代器。否则返回past-the-end。
+void main01()
+{
+	vector<int> v;
+	v.push_back(2);
+	v.push_back(1);
+	v.push_back(4);
+	v.push_back(3);
+	v.push_back(2);
+	v.push_back(2);
+	v.push_back(6);
+	vector<int>::iterator it = adjacent_find(v.begin(),v.end());
+	if (it!=v.end())
+	{
+		cout << "找到相邻重复元素: " << *it<<endl;
+	}
+	else
+	{
+		cout << "没有找到相邻重复元素: " << endl;
+	}
+	int index = distance(v.begin(),it);
+	cout << index << endl;
+}
+//binary_search 二分查找法，在有序序列中查找value,找到则返回true。注意：在无序序列中，不可使用 
+//优点：速度快 在一个数组含有1024个有序元素中查找，只需要查找10次
+void main02()
+{
+	vector<int> v;
+	for (int i = 0;i < 10000;i++)
+	{
+		v.push_back(i);
+	}
+	bool sa=binary_search(v.begin(),v.end(),2334);
+	if (sa == true)
+	{
+		cout << "找到2334" << endl;
+	}
+	else
+	{
+		cout << "未找到" << endl;
+	}
+}
+//count()  利用等于操作符，把标志范围内的元素与输入值比较，返回相等的个数。
+void main03()
+{
+	vector<int> v;
+	for (int i = 0;i < 10000;i++)
+	{
+		v.push_back(i);
+	}
+	int num = count(v.begin(), v.end(), 2345);
+	cout << num << endl;
+}
+bool great(int num)
+{
+	if (num > 23)
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+//count_if() 
+void main04()
+{
+	vector<int> v;
+	for (int i = 0;i < 100;i++)
+	{
+		v.push_back(i);
+	}
+	int num = count_if(v.begin(), v.end(), great);
+	cout << num << endl;
+}
+//find() find_if()
+void main05()
+{
+	vector<int> v;
+	for (int i = 0;i < 100;i++)
+	{
+		v.push_back(i);
+	}
+	vector<int>::iterator it = find(v.begin(),v.end(),40);
+	cout << "*it: " << *it << endl;
+	//第一个大于23的位置
+	vector<int>::iterator it2 = find_if(v.begin(), v.end(), great);
+	cout << "*it2: " << *it2 << endl;
+}
+void main()
+{
+	//main01();
+	//main02();
+	//main03();
+	//main04();
+	main05();
+	system("pause");
+}
+~~~
+
+### 13.2.6 常用的排序算法
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<deque>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+template<typename T>//打印模板函数
+void print(T t)
+{
+	for (T::iterator it = t.begin();it != t.end();it++)
+	{
+		cout << *it<<" ";
+	}
+	cout << endl;
+}
+//merge() 合并两个有序序列，存放到另一个序列
+void main01()
+{
+	deque<int> d1,d2;
+	d1.push_back(1);
+	d1.push_back(3);
+	d1.push_back(5);
+	d1.push_back(8);
+	d2.push_back(4);
+	d2.push_back(6);
+	d2.push_back(9);
+	d2.push_back(14);
+	d2.push_back(17);
+	d2.push_back(19);
+	deque<int> d3(d1.size() + d2.size());
+	merge(d1.begin(),d1.end(),d2.begin(),d2.end(),d3.begin());
+	print<deque<int>>(d3);//1 3 4 5 6 ...
+}
+class Teacher
+{
+public:
+	int age;
+	char name[32];
+	Teacher(int a,char *b)
+	{
+		strcpy(name,b);
+		age = a;
+	}
+	friend ostream &operator<<(ostream &out,Teacher &obj);
+};
+ostream &operator<<(ostream &out, Teacher &obj)
+{
+	out << "age: " << obj.age << "name: " << obj.name << endl;
+	return out;
+}
+bool compare(Teacher &obj1,Teacher &obj2)
+{
+	return obj1.age < obj2.age;
+}
+//sort() 以默认升序的方式重新排列指定范围内的元素。若要改排序规则，可以输入比较函数。
+void main02()
+{
+	vector<Teacher> v;
+	Teacher t1(20,"a");
+	Teacher t2(30, "bb");
+	Teacher t3(25, "vv");
+	v.push_back(t1);
+	v.push_back(t2);
+	v.push_back(t3);
+	//根据自定义函数对象 进行自定义数据类型的排序
+	sort(v.begin(),v.end(), compare);
+	print<vector<Teacher>>(v);
+}
+//random_shuffle() 随机排序
+void main03()
+{
+	vector<int> v;
+	for (int i = 0;i < 10;i++)
+	{
+		v.push_back(i);
+	}
+	print<vector<int>>(v);
+	random_shuffle(v.begin(), v.end());
+	print<vector<int>>(v);
+	string s = "dasavzfa";
+	random_shuffle(s.begin(), s.end());
+	print<string>(s);
+}
+void main()
+{
+	//main01();
+	//main02();
+	main03();
+	system("pause");
+}
+~~~
+
+### 13.2.7 常用的拷贝和替换算法
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<deque>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+template<typename T>//打印模板函数
+void print(T t)
+{
+	for (T::iterator it = t.begin();it != t.end();it++)
+	{
+		cout << *it << " ";
+	}
+	cout << endl;
+}
+//replace(beg,end,oldValue,newValue):将指定范围内的所有等于oldValue的元素替换成newValue
+void main01()
+{
+	vector<int> v;
+	v.push_back(2);
+	v.push_back(3);
+	v.push_back(5);
+	v.push_back(3);
+	v.push_back(2);
+	print<vector<int>>(v);
+	replace(v.begin(),v.end(),2,20);
+	print<vector<int>>(v);
+}
+bool Geater(int num)
+{
+	return num > 2;
+}
+//replace_if : 将指定范围内所有操作结果为true的元素用新值替换。
+//用法举例：
+//replace_if(vecIntA.begin(), vecIntA.end(), GreaterThree, newVal)
+//其中 vecIntA是用vector<int>声明的容器
+//GreaterThree 函数的原型是 bool GreaterThree(int iNum)
+void main02()
+{
+	vector<int> v;
+	v.push_back(2);
+	v.push_back(3);
+	v.push_back(5);
+	v.push_back(3);
+	v.push_back(2);
+	print<vector<int>>(v);
+	replace_if(v.begin(),v.end(), Geater,10);//将大于2的值都改为10
+	print<vector<int>>(v);
+}
+//swap() 交换两个容器的元素
+void main03()
+{
+	vector<int> v;
+	v.push_back(2);
+	v.push_back(3);
+	v.push_back(5);
+	v.push_back(3);
+	v.push_back(2);
+	vector<int> v1;
+	v1.push_back(6);
+	v1.push_back(6);
+	v1.push_back(6);
+	v1.push_back(6);
+	v1.push_back(6);
+	swap(v,v1);
+	print<vector<int>>(v);
+}
+void main()
+{
+	//main01();
+	//main02();
+	main03();
+	system("pause");
+}
+~~~
+
+### 13.2.8 常用集合运算
+
+~~~c++
+#define _CRT_SECURE_NO_WARNINGS
+#include<iostream>
+using namespace std;
+#include<vector>
+#include<set>
+#include<string>
+#include<deque>
+#include<algorithm>//算法的头文件，其中常用到的功能范围涉及到比较、交换、查找、遍历操作、复制、修改、反转、排序、合并等等
+#include<functional>//定义了一些模板类，用以声明函数对象
+template<typename T>//打印模板函数
+void print(T t)
+{
+	for (T::iterator it = t.begin();it != t.end();it++)
+	{
+		cout << *it << " ";
+	}
+	cout << endl;
+}
+//set_union:  构造一个有序序列，包含两个有序序列的并集。
+//set_intersection : 构造一个有序序列，包含两个有序序列的交集。
+//set_difference : 构造一个有序序列，该序列保留第一个有序序列中存在而第二个有序序列中不存在的元素。
+void main()
+{
+	vector<int> v;
+	v.push_back(2);
+	v.push_back(3);
+	v.push_back(5);
+	v.push_back(3);
+	v.push_back(2);
+	vector<int> v2;
+	v2.push_back(1);
+	v2.push_back(3);
+	v2.push_back(4);
+	v2.push_back(98);
+	v2.push_back(2);
+	vector<int> v3;
+	v3.resize(v.size()+v2.size());
+	set_union(v.begin(), v.end(), v2.begin(), v2.end(), v3.begin());
+	print<vector<int>>(v3);
+	system("pause");
+}
+~~~
+
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
