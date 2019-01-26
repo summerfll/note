@@ -3746,6 +3746,8 @@ void main()
 
 #### **gcc编译过程**
 
+![174](F:\学习专用\note\pic\174.png)
+
 预处理（Pre-Processing）
 
 编译（Compiling）
