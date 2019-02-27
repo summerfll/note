@@ -842,6 +842,12 @@ int unlink(const char *pathname);//成功返回0，出错-1
 
 UNIX系统shell使用**文件描述符0**与进程的标准**输入**相关联，**1**与标准**输出**相关联，**2**与标准**出错输出**相关联，文件描述符一共有1024个，前3个不能使用，用户使用从第4个开始。
 
+STDIN_FILENO 标准输入
+
+STDOUT_FILENO 标准输出
+
+STDERR_FILENO 标准出错
+
 ## 2.open函数
 
 调用open函数打开或创建一个文件
@@ -1153,7 +1159,7 @@ int fcntl(int file,int cmd,.../*int arg*/);//返回值：成功则依赖cmd，�
 
 线程：共享地址空间，每个线程有属于自己的PCB
 
-区别：是否共享地址空间
+区别：**是否共享地址空间**
 
 Linux下：线程：最小执行单位
 
@@ -1460,7 +1466,7 @@ pthread_cancel并不等待线程终止，它仅仅提出请求
 
 ### 5.1互斥量
 
-可以通过使用pthread的互斥接口保护数据，确保同一时间只有一个线程访问数据。
+可以通过使用pthread的互斥接口保护数据，**确保同一时间只有一个线程访问数据**。
 
 互斥量本质上说是一把锁，在访问共享资源前对互斥量进行加锁，在访问完成后释放互斥量上的锁。对互斥量进行加锁后，任何其他试图再次对互斥量加锁的线程将会被阻塞直到当前线程释放该互斥锁。
 
@@ -1489,74 +1495,178 @@ pthread_mutex_trylock尝试对互斥量加锁，线程不被阻塞，调用pthre
 
 **实例：**
 
-使用互斥量保护数据结构
-
 ```c
 #include<stdlib.h>
 #include<pthread.h>
-struct foo{
-    int f_count;
-    pthread_mutex_t f_lock;
-};
-struct f00 *foo_alloc(void)
+#include<stdio.h>
+#include<unistd.h>
+void *play(void* arg)
 {
-    struct foo *fp;
-    if((fp = malloc(sizeof(struct foo))) != NULL)//用malloc动态分配互斥量和计数变量
+    srand(time(0));
+    while(1)
     {
-        fp->f_count = 1;
-        if(pthread_mutex_init(&fp->f_lock,NULL)!=0)//初始化互斥量
-        {
-            free(fp);
-            return(NULL);
-        }
+        printf("hello ");
+        sleep(rand()%5);//模拟长时间操作共享资源，导致cp易主，产生与时间有关的错误
+        printf("mutex\n");
     }
-    return(fp);
 }
-void foo_hold(struct foo *fp)
+int main()
 {
-    pthread_mutex_lock(&fp->f_lock);//对互斥量加锁并修改计数变量的值
-    fp->count++;
-    pthread_mutex_unlock(&fp->f_lock);
-}
-
-void foo_rele(struct foo *fp)
-{
-    pthread_mutex_lock(&fp->f_lock);
-    if(--fp->f_count == 0){
-        pthread_mutex_unlock(&fp->f_lock);
-        pthread_mutex_destroy(&fp->f_lock);
-        free(fp);//释放内存
-    }else{
-        pthread_mutex_unlock(&fp->f_lock);
+   pthread_t tid;
+    int ret=pthread_create(&tid,NULL,play,NULL);
+    if(ret!=0)
+    {
+        printf("pthread_create err\n");
+        exit(1);
     }
+    srand(time(0));
+    while(1)
+    {
+        printf("HELLO ");
+        sleep(rand()%5);
+        printf("MUTEX\n");
+    }
+    return 0;
 }
 ```
 
+结果：
+
+![215](F:\学习专用\note\pic\215.png)
+
+案例：
+
+使用互斥锁对STDOUT进行加锁
+
+~~~cpp
+#include<stdlib.h>
+#include<pthread.h>
+#include<stdio.h>
+#include<unistd.h>
+ pthread_mutex_t mutex;//定义锁
+void *play(void* arg)
+{
+    int i=3;
+    srand(time(0));
+    while(i--)
+    {
+        pthread_mutex_lock(&mutex);//加锁
+        printf("hello ");
+        sleep(rand()%5);//模拟长时间操作共享资源，导致cp易主，产生与时间有关的错误
+        printf("mutex\n");
+        pthread_mutex_unlock(&mutex);
+    }
+}
+int main()
+{
+    pthread_t tid;
+    int i=3;
+    pthread_mutex_init(&mutex,NULL);//初始化锁，此时mutex==1
+    int ret=pthread_create(&tid,NULL,play,NULL);
+    if(ret!=0)
+    {
+        printf("pthread_create err\n");
+        exit(1);
+    }
+    srand(time(0));
+    while(i--)
+    {
+        pthread_mutex_lock(&mutex);
+        printf("HELLO ");
+        sleep(rand()%5);
+        printf("MUTEX\n");
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_join(tid,NULL);//阻塞回收子线程
+     pthread_mutex_destroy(&mutex);//销毁锁
+    return 0;
+}
+~~~
+
+![216](F:\学习专用\note\pic\216.png)
+
 ### 5.2避免死锁
 
-**死锁：**
+#### **死锁：**
 
-如果线程试图对同一个互斥量加锁两次，那么它自身就会陷入死锁状态。例：程序中使用多个互斥量，如果允许一个线程一直占用第一个互斥量，并且在试图锁住第二个互斥量时处于阻塞状态，但拥有第二个互斥量的线程也在试图锁住第一个互斥量，这就发生死锁。即：两个线程都在请求另一个线程拥有的资源，所有两个线程都无法向前运行，于是产生**死锁**。
+1）.线程对同一个互斥量A加锁两次
 
-可以通过小心地控制互斥量加锁地顺序来避免死锁地发生。例：假设需要对两个互斥量A和B同时加锁，如果所有线程总是在对互斥量B加锁之前锁住互斥量A，那么使用者两个互斥量不会产生死锁。类似地，如果所有线程总是在锁住互斥量A之前锁住互斥量B，那么也不会产生死锁。只有在一个线程试图以与另一个线程相反地顺序锁住互斥量时，才可能出现死锁。
+![217](F:\学习专用\note\pic\217.png)
+
+~~~cpp
+#include<stdlib.h>
+#include<pthread.h>
+#include<stdio.h>
+#include<unistd.h>
+ pthread_mutex_t mutex;//定义锁
+void *play(void* arg)
+{
+    int i=3;
+    srand(time(0));
+    while(i--)
+    {
+        pthread_mutex_lock(&mutex);//加锁
+        printf("hello ");
+        sleep(rand()%5);//模拟长时间操作共享资源，导致cp易主，产生与时间有关的错误
+        printf("mutex\n");
+        pthread_mutex_lock(&mutex);//---------------------线程对同一互斥量两次加锁，造成死锁
+    }
+}
+int main()
+{
+    pthread_t tid;
+    int i=3;
+    pthread_mutex_init(&mutex,NULL);//初始化锁，此时mutex==1
+    int ret=pthread_create(&tid,NULL,play,NULL);
+    if(ret!=0)
+    {
+        printf("pthread_create err\n");
+        exit(1);
+    }
+    srand(time(0));
+    while(i--)
+    {
+        pthread_mutex_lock(&mutex);
+        printf("HELLO ");
+        sleep(rand()%5);
+        printf("MUTEX\n");
+        pthread_mutex_unlock(&mutex);
+    }
+    pthread_join(tid,NULL);//阻塞回收子线程
+     pthread_mutex_destroy(&mutex);//销毁锁
+    return 0;
+}
+~~~
+
+
+
+2）线程1拥有A锁，请求获得B锁，线程2拥有B锁，请求获得A锁
+
+![218](F:\学习专用\note\pic\218.png)
+
+#### 避免死锁
+
+对于死锁1：对一个互斥量加锁后，使用了共享资源便立即释放锁，便可避免死锁
+
+对于死锁2：线程1拥有A锁，请求获得B锁，此时使用trylock函数，如果无法获得B锁，则放弃已有的A锁
 
 ### 5.3读写锁
 
-读写锁类似于互斥量，不过读写锁允许更高地并行性。
+读写锁类似于互斥量，不过读写锁允许更高地并行性，特性：**写独占，读共享，写的优先级更高！！！**
 
-**读写锁地三种状态：**
+**一把读写锁地三种状态：**
 
-- 读模式下加锁
-- 写模式下加锁
+- 读模式下加锁（读锁）
+- 写模式下加锁（写锁）
 - 不加锁
 
 一次只有一个线程可以占有写模式地读写锁，但是多个线程可以同时占有读模式地读写锁
 
-（1）当读写锁是写加锁状态时，在解锁前，所有试图对这个锁加锁的线程都会被阻塞。
+（1）当读写锁是写加锁状态时，在解锁前，所有试图对这个锁加锁的线程都会被阻塞。**写独占**
 
-（2）当读写锁是读加锁时，所有试图以读模式对它进行加锁的线程都可以实现，但如果线程以写模式对此加锁，它必须阻塞直到所有线程释放读锁。
+（2）当读写锁是读加锁时，所有试图以读模式对它进行加锁的线程都可以实现。**读共享**
 
-（3）当读写锁是读加锁时，如果有另外的线程试图以写模式加锁，读写锁会阻塞随后的读模式锁请求，避免读模式锁长期占用
+（3）当读写锁是读加锁时，如果有另外的线程试图以写模式加锁，读写锁会阻塞随后的读模式锁请求，避免读模式锁长期占用，**写优先**
 
 读写锁也叫共享-独占锁，当读写锁以读模式锁住时，它是以共享模式锁住的，当它以写模式锁住时，它是以独占模式锁住的。
 
@@ -1581,6 +1691,75 @@ int pthread_rwlock_wrlock(pthread_rwlock_t *rwlock);//写模式下加锁
 int pthread_rwlock_unlock(pthread_rwlock_t *rwlock);//解锁
 //所有的返回值：成功返回0，否则返回错误编号
 ```
+
+**案例：**
+
+线程1,2进行读操作，线程3,4进行写操作
+
+~~~cpp
+#include<unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<pthread.h>
+pthread_rwlock_t rwlock;//定义读写锁
+int flag=10;
+void *rd_play(void *arg)
+{
+    int i=(int)arg;
+    while(1)
+    {
+        pthread_rwlock_rdlock(&rwlock);
+        printf("===read====%dth pthread: pthread_ID = %lu flag = %d\n",i+1,pthread_self(),flag);
+        pthread_rwlock_unlock(&rwlock);
+        usleep(1000);//让cpu易主，执行其他操作
+    }
+}
+void *wr_play(void *arg)
+{
+    int i=(int)arg;
+   while(1)
+    {
+        pthread_rwlock_wrlock(&rwlock);
+        ++flag;
+        printf("----------write-------------%dth pthread: pthread_ID = %lu flag = %d\n",i+1,pthread_self(),flag);
+        pthread_rwlock_unlock(&rwlock);
+        usleep(1000);
+    }
+}
+int main()
+{
+    
+    pthread_t tid[4];
+    pthread_rwlock_init(&rwlock,NULL);//初始化读写锁
+    int i=0;
+    for(;i<2;i++)
+    {
+        int ret=pthread_create(&tid[i],NULL,rd_play,(void *)i);
+        if(ret!=0)
+        {
+            printf("pthread_create err: %s\n",strerror(ret));
+            exit(1);
+        }
+    }
+    for(;i<4;i++)
+    {
+        int ret=pthread_create(&tid[i],NULL,wr_play,(void *)i);
+        if(ret!=0)
+        {
+            printf("pthread_create err: %s\n",strerror(ret));
+            exit(1);
+        }
+    }
+    for(int j=0;j<4;j++)
+    {
+        pthread_join(tid[i],NULL);
+    }      
+    pthread_rwlock_destroy(&rwlock);
+    return 0;
+}
+~~~
+
+![219](F:\学习专用\note\pic\219.png)
 
 ### 5.4条件变量
 
@@ -1618,43 +1797,80 @@ int pthread_cond_signal(pthread_cond_t *cond);
 int pthread_cond_broadcast(pthread_cond_t *cond);//两返回值：成功返回0，否则返回错误编号
 ```
 
+#### **例程：**生产者消费者模型
 
+线程同步典型的案例即为生产者消费者模型，而借助条件变量来实现这一模型，是比较常见的一种方法。假定有两个线程，一个模拟生产者行为，一个模拟消费者行为。两个线程同时操作一个共享资源（一般称之为汇聚），生产向其中添加产品，消费者从中消费掉产品。
 
-**例程：**
-
-使用条件变量和互斥量对线程进行同步
+![221](F:\学习专用\note\pic\221.png)
 
 ```c
+#include<unistd.h>
+#include<stdio.h>
+#include<stdlib.h>
 #include<pthread.h>
-struct msg{
-    struct msg *m_next;
-};
-struct msg *workq;
-pthread_cond_t qready = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t qlock = PTHREAD_MUTEX_INITIALIZER;
-
-void process_msg(void)
+struct msg
 {
-    struct msg *mp;
-    for(;;)
+    int mun;
+    struct msg *next;
+};
+struct msg *head=NULL;
+struct msg *mp=NULL;
+//静态初始化一个条件变量和一个互斥量
+pthread_cond_t has_product = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+void *producter(void *arg)
+{
+    while(1)
     {
-        pthread_mutex_lock(&qlock);
-        while(workq == NULL)
-            pthread_cond_wait(&qready,&qlock);
-        mp = workq;
-        workq = mp->m_next;
-        pthread_mutex_unlock(&qlock);
+        mp=malloc(sizeof(struct msg));
+        mp->mun=rand()%400+1;
+        printf("---------producnted-----%d\n",mp->mun);
+        pthread_mutex_lock(&mutex);//加锁，向全局区写数据
+        mp->next=head;
+        head=mp;
+        pthread_mutex_unlock(&mutex);
+        pthread_cond_signal(&has_product);//唤醒等待的线程
+        sleep(rand()%3);
     }
 }
-void enqueue_msg(struct msg *mp)
+void *consumer(void *arg)
 {
-    pthread_mutex_lock(&qlock);
-    mp->m_next = workq;
-    workq=mp;
-    pthread_mutex_unlock(&qlock);
-    pthread_cond_signal(&qready);
+    while(1)
+    {
+        pthread_mutex_lock(&mutex);//加锁，从全局区取数据
+        while(head==NULL)
+            pthread_cond_wait(&has_product,&mutex);//等待，直到被唤醒
+        mp=head;
+        head=mp->next;
+        pthread_mutex_unlock(&mutex);
+        printf("------consumer-----%d\n",mp->mun);
+        free(mp);
+        sleep(rand()%3);
+    }
+}
+int main()
+{
+    pthread_t pid,cid;
+    srand(time(0));
+    pthread_create(&pid,NULL,producter,NULL);
+    pthread_create(&cid,NULL,consumer,NULL);
+    pthread_join(pid,NULL);
+    pthread_join(cid,NULL);
+    return 0;
 }
 ```
+
+![220](F:\学习专用\note\pic\220.png)
+
+#### 例程：哲学家进餐模型
+
+![222](F:\学习专用\note\pic\222.png)
+
+5个哲学家共享一份面，需要一双筷子才能吃面，而他们每人只有1支筷子
+
+振荡：如果每个人都攥着自己左手的锁，尝试去拿右手锁，拿不到则将锁释放。过会儿五个人又同时再攥着左手锁尝试拿右手锁，依然拿不到。如此往复形成另外一种极端死锁的现象——振荡。
+
+​         避免振荡现象：只需5个人中，任意一个人，拿锁的方向与其他人相逆即可(如：E，原来：左：4，右：0 现在：左：0， 右：4)。
 
 ## 6.线程使用注意事项
 
@@ -1969,7 +2185,7 @@ int main(void)
     	printf("parent about to fork ----\n");
     	if((pid = fork())<0)
             err_quit("fork failed");
-    	else if(pid==0)
+    	else if(pid==0) 
             printf("child return fork\n");//子进程
     	else
             sleep(1);
